@@ -11,6 +11,8 @@ from psycopg2.extras import execute_values
 import json
 from typing import Dict, List, Any
 import logging
+import os
+from dotenv import load_dotenv
 
 # Configure logging
 logging.basicConfig(
@@ -24,11 +26,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 # Neon PostgreSQL Connection String
-CONNECTION_STRING = (
-    "postgresql://neondb_owner:npg_Hn0pU4RPxLSw@"
-    "ep-silent-dew-amqh7l3j-pooler.c-5.us-east-1.aws.neon.tech/"
-    "neondb?sslmode=require"
-)
+CONNECTION_STRING = os.environ.get("CONNECTION_STRING")
 
 # API Endpoints (converted to SODA API format)
 # Format: https://data.cityofchicago.org/resource/{dataset_id}.json
