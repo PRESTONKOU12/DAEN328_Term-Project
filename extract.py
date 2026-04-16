@@ -342,6 +342,13 @@ def create_combined_view(conn):
         logger.warning(f"Could not create combined view (schemas may differ): {e}")
         conn.rollback()
 
+
+
+################################################################################################
+# Chicago zip code ingestion
+# Zip codes -> zip code table
+################################################################################################
+
 # List of official Chicago ZCTAs (ZIP Code Tabulation Areas)
 CHICAGO_ZIPS = [
     "60601", "60602", "60603", "60604", "60605", "60606", "60607", "60608", "60609", "60610",
@@ -450,6 +457,9 @@ def get_chicago_data(zip_list, release="acs2019_5yr"):
     return pd.DataFrame(all_results)
 
 
+#################################################################################################
+# MAIN Function
+#################################################################################################
 
 def main():
     """Main entry point for the data ingestion script."""
@@ -459,7 +469,7 @@ def main():
     
     conn = None
     
-    try:
+    try: #zip code logic (runs independently of main ingestion script)
         df = get_chicago_data(CHICAGO_ZIPS)
     except Exception as e:
         logger.error(f"Failed to retrieve Chicago data: {e}")
