@@ -1,0 +1,15 @@
+# database
+psycopg2-binary==2.9.9
+
+# data
+pandas==2.2.0
+numpy==1.26.4
+
+# api calls
+requests==2.31.0
+
+# geocoding
+geopy==2.4.1
+
+# env
+python-dotenv==1.0.0

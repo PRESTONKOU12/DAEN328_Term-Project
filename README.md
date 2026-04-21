@@ -31,103 +31,145 @@ The steps of our pipeline are as follows
 ║                         MOVIES IN THE PARK — DATA PIPELINE                                   ║
 ╚══════════════════════════════════════════════════════════════════════════════════════════════╝
 
- EXTERNAL SOURCES                    CONTAINERS                              STORAGE
- ═══════════════                     ══════════                              ═══════
+ EXTERNAL SOURCES                    [etl container]                         STORAGE
+ ═══════════════                     ═══════════════                         ═══════
 
  ┌─────────────────────┐
  │ Chicago Open Data   │
  │ SODA API            │
- │ (2014–2019 movies)  │
+ │ 2014 → 2019         │
  └──────────┬──────────┘
-            │ HTTP GET
-            │ JSON
-            ▼
- ┌─────────────────────┐            ┌──────────────────────┐
- │ US Census Bureau    │            │                      │             ┌─────────────────────┐
- │ ACS API             │──────────► │   [extract]          │────────────►│   [postgres]        │
- │ (ZIP demographics)  │  HTTP GET  │                      │  psycopg2   │                     │
- └─────────────────────┘  JSON      │  • fetch API data    │  INSERT     │  movies_in_the_     │
-                                    │  • infer schema      │             │  park_2014..2019    │
-                                    │  • sanitize columns  │             │                     │
-                                    │  • bulk insert       │             │  chicago_zip_       │
-                                    │                      │             │  demographics       │
-                                    └──────────────────────┘             │                     │
-                                                                         │  (raw / unclean)    │
-                                                                         └─────────────────────┘
-
-
-                                    ┌──────────────────────┐
-                                    │                      │             ┌─────────────────────┐
-                                    │   [transform]        │────────────►│   ./data/           │
-                                    │                      │  writes     │                     │
-                                    │  • extract coords    │  CSV        │  cleaned_merged_    │
-                                    │  • fill missing ZIPs │             │  movies_final.csv   │
-                                    │  • reverse geocode   │◄────────────│                     │
-                                    │  • clean columns     │  reads      │  merged_movies.csv  │
-                                    │  • rename + coerce   │  CSV        │  (shared volume)    │
-                                    │  • drop blank rows   │             └─────────────────────┘
-                                    │  • derive Year col   │
-                                    └──────────────────────┘
-
-
-                                    ┌──────────────────────┐
-                                    │                      │◄────────────┐
-                                    │   [load]             │  reads      │  ./data/
-                                    │                      │  CSV        │  cleaned_merged_
-                                    │  • read cleaned CSV  │             │  movies_final.csv
-                                    │  • validate schema   │             └─────────────────────
-                                    │  • upsert final      │
-                                    │    tables            │────────────►┌─────────────────────┐
-                                    │                      │  psycopg2   │   [postgres]        │
-                                    └──────────────────────┘  INSERT     │                     │
-                                                                         │  movies_clean       │
-                                                                         │                     │
-                                                                         │  chicago_zip_       │
-                                                                         │  demographics       │
-                                                                         │                     │
-                                                                         │  (clean / final)    │
-                                                                         └──────────┬──────────┘
-                                                                                    │
-                                                                                    │ psycopg2
-                                                                                    │ SELECT
-                                                                                    ▼
-                                    ┌──────────────────────┐
-                                    │                      │
-                                    │   [streamlit]        │
-                                    │                      │
-                                    │  • query postgres    │
-                                    │  • render charts     │
-                                    │  • filter / explore  │
-                                    │                      │
-                                    └──────────┬───────────┘
-                                               │
-                                               │ HTTP :8501
-                                               ▼
-                                    ┌──────────────────────┐
-                                    │      BROWSER         │
-                                    │   localhost:8501     │
-                                    └──────────────────────┘
+            │ HTTP GET                ┌──────────────────────┐
+            │ JSON                   │                      │
+            ▼                        │     extract.py       │
+ ┌─────────────────────┐             │                      │
+ │ US Census Bureau    │────────────►│  • fetch movies API  │
+ │ ACS API             │  HTTP GET   │  • fetch census API  │
+ │ ZIP demographics    │  JSON       │  • merge into single │
+ └─────────────────────┘             │    raw DataFrame     │
+                                     │                      │
+                                     └──────────┬───────────┘
+                                                │
+                                                │  raw DataFrame
+                                                │  (in memory)
+                                                ▼
+                                     ┌──────────────────────┐
+                                     │                      │
+                                     │    transform.py      │
+                                     │                      │
+                                     │  • extract coords    │
+                                     │  • fill missing ZIPs │
+                                     │  • reverse geocode   │
+                                     │  • clean columns     │
+                                     │  • rename + coerce   │
+                                     │  • drop blank rows   │
+                                     │  • derive Year col   │
+                                     │  • fill nulls        │
+                                     │                      │
+                                     └──────────┬───────────┘
+                                                │
+                                                │  clean DataFrame
+                                                │  (in memory)
+                                                ▼
+                                     ┌──────────────────────┐
+                                     │                      │
+                                     │      load.py         │
+                                     │                      │
+                                     │  • create ZipCodes   │
+                                     │  • create Parks      │
+                                     │  • create Events     │
+                                     │  • bulk insert all   │
+                                     │  • verify row counts │
+                                     │                      │
+                                     └──────────┬───────────┘
+                                                │
+                                                │  psycopg2
+                                                │  INSERT
+                                                ▼
+                                     ┌──────────────────────────────────────┐
+                                     │           [postgres]                 │
+                                     │                                      │
+                                     │  ZipCodes                            │
+                                     │  ├── zip_code  VARCHAR(10)  PK       │
+                                     │  └── income    INTEGER               │
+                                     │            │                         │
+                                     │            │ FK zip_code             │
+                                     │            ▼                         │
+                                     │  Parks                               │
+                                     │  ├── park_id   SERIAL       PK       │
+                                     │  ├── park_name VARCHAR(255)          │
+                                     │  ├── address   VARCHAR(255)          │
+                                     │  └── zip_code  VARCHAR(10)  FK       │
+                                     │            │                         │
+                                     │            │ FK park_id              │
+                                     │            ▼                         │
+                                     │  Events                              │
+                                     │  ├── event_id          SERIAL  PK    │
+                                     │  ├── movie_name        VARCHAR(255)  │
+                                     │  ├── park_id           INTEGER FK    │
+                                     │  ├── rating            VARCHAR(10)   │
+                                     │  ├── date              DATE          │
+                                     │  └── closed_captioning BOOLEAN       │
+                                     │                                      │
+                                     └──────────────────────────────────────┘
+                                                │
+                                                │  psycopg2
+                                                │  SELECT
+                                                ▼
+                                     ┌──────────────────────┐
+                                     │                      │
+                                     │     [streamlit]      │
+                                     │                      │
+                                     │  • query postgres    │
+                                     │  • render charts     │
+                                     │  • filter / explore  │
+                                     │                      │
+                                     └──────────┬───────────┘
+                                                │
+                                                │ HTTP :8501
+                                                ▼
+                                     ┌──────────────────────┐
+                                     │       BROWSER        │
+                                     │   localhost:8501     │
+                                     └──────────────────────┘
 
 
 ╔══════════════════════════════════════════════════════════════════════════════════════════════╗
 ║  STARTUP ORDER          docker-compose up --build                                            ║
 ║                                                                                              ║
-║  [postgres] ──healthy──► [extract] ──done──► [transform] ──done──► [load] ──done──►         ║
-║   empty db               raw tables          cleaned CSV            final tables             ║
-║                                                                                  │           ║
-║                                                                              [streamlit]     ║
-║                                                                              dashboard up    ║
+║  [postgres] ──healthy──► [etl] ──completed──► [streamlit]                                   ║
+║   empty db               extract                dashboard                                   ║
+║                          transform              up at :8501                                 ║
+║                          load                                                               ║
 ╚══════════════════════════════════════════════════════════════════════════════════════════════╝
 
 
 ╔══════════════════════════════════════════════════════════════════════════════════════════════╗
-║  SHARED VOLUME MAP                                                                           ║
+║  IN-MEMORY DATA FLOW                                                                         ║
 ║                                                                                              ║
-║   host: ./data  ◄──────────────────────────────────────────────────────────────────────     ║
-║                          │ extract        │ transform      │ load                           ║
-║                          │ writes raw     │ reads + writes │ reads cleaned                  ║
-║                          │ CSVs           │ cleaned CSVs   │ CSVs                           ║
-║                  container: /app/data ◄──────────────────────────────────────────────────   ║
+║  extract.py                 transform.py                load.py                             ║
+║  ══════════                 ════════════                ═══════                             ║
+║  fetch APIs                 receives raw_df             receives clean_df                   ║
+║       │                          │                           │                              ║
+║       │                          │  cleans in memory         │  writes to postgres          ║
+║       ▼                          ▼                           ▼                              ║
+║  raw_df        ────────►   clean_df         ────────►   ZipCodes                           ║
+║  (in memory)               (in memory)                  Parks                              ║
+║                                                          Events                             ║
+║                                                                                              ║
+║  No CSVs written to disk.                                                                    ║
+║  Postgres is written to exactly once — at the end of the pipeline.                           ║
+╚══════════════════════════════════════════════════════════════════════════════════════════════╝
+
+
+╔══════════════════════════════════════════════════════════════════════════════════════════════╗
+║  NORMALISED SCHEMA — LOAD ORDER                                                              ║
+║                                                                                              ║
+║  1. ZipCodes   ← no foreign key dependencies, loaded first                                  ║
+║       │                                                                                      ║
+║  2. Parks      ← depends on ZipCodes (zip_code FK)                                          ║
+║       │                                                                                      ║
+║  3. Events     ← depends on Parks (park_id FK)                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════════════════════╝
 ```
 
@@ -137,11 +179,11 @@ The steps of our pipeline are as follows
 |--------|---------|
 | `──►` | Data flow direction |
 | `[service]` | Docker container |
-| `(raw / unclean)` | Staging data, not yet transformed |
-| `(clean / final)` | Production-ready data for the dashboard |
-| `./data/` | Shared host volume mounted into each container at `/app/data` |
-| `service_healthy` | Docker healthcheck gate — postgres must be ready before extract connects |
-| `service_completed_successfully` | Each ETL stage must fully finish before the next one starts |
+| `FK` | Foreign key constraint |
+| `PK` | Primary key |
+| `in memory` | Data lives in a Python DataFrame — never written to disk |
+| `service_healthy` | Docker healthcheck gate — postgres must be ready before ETL connects |
+| `service_completed_successfully` | ETL must fully finish before streamlit starts |
 
 ## Quickstart
 
