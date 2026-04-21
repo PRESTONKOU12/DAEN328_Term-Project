@@ -1,50 +1,122 @@
 services:
+
+  # ===========================================================================
+  # POSTGRES — starts empty, ETL pipeline creates and populates all tables
+  # ===========================================================================
+  postgres:
+    image: postgres:15
+    container_name: movies_postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB:       ${DB_NAME}
+      POSTGRES_USER:     ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data   # named volume — survives restarts
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ===========================================================================
+  # EXTRACT — fetches from Chicago Open Data + Census APIs, loads raw tables
+  # ===========================================================================
   extract:
     build:
       context: ./extract
       dockerfile: Dockerfile.extract
+    container_name: movies_extract
     env_file:
       - .env
+    environment:
+      DB_HOST:     postgres           # must match the service name above
+      DB_PORT:     ${DB_PORT}
+      DB_NAME:     ${DB_NAME}
+      DB_USER:     ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      API_ENDPOINTS: ${API_ENDPOINTS}
     volumes:
-      - ./data:/app/data        # writes merged_movies.csv into data/
+      - ./data:/app/data              # raw CSVs land here if needed
+    depends_on:
+      postgres:
+        condition: service_healthy    # waits for postgres healthcheck to pass
 
+  # ===========================================================================
+  # TRANSFORM — reads raw tables, writes cleaned_merged_movies_final.csv
+  # ===========================================================================
   transform:
     build:
       context: ./transform
       dockerfile: Dockerfile.transform
+    container_name: movies_transform
     env_file:
       - .env
     environment:
-      - DATA_DIR=/app/data      # must match the volume mount path below
-      - GEOCODER_AGENT=movies_in_the_park_transform
-      - GEOCODER_DELAY=1.0      # seconds between geocoder calls
+      DB_HOST:        postgres
+      DB_PORT:        ${DB_PORT}
+      DB_NAME:        ${DB_NAME}
+      DB_USER:        ${DB_USER}
+      DB_PASSWORD:    ${DB_PASSWORD}
+      DATA_DIR:       /app/data
+      GEOCODER_AGENT: movies_in_the_park_transform
+      GEOCODER_DELAY: "1.0"
     volumes:
-      - ./data:/app/data        # reads merged_movies.csv, writes cleaned_merged_movies_final.csv
+      - ./data:/app/data
     depends_on:
-      - extract                 # extract must finish before transform starts
+      extract:
+        condition: service_completed_successfully   # extract must finish first
 
-  # ---------------------------------------------------
-  # Placeholders — uncomment as you build each service
-  # ---------------------------------------------------
+  # ===========================================================================
+  # LOAD — reads cleaned CSV, writes final tables into postgres
+  # ===========================================================================
+  load:
+    build:
+      context: ./load
+      dockerfile: Dockerfile.load
+    container_name: movies_load
+    env_file:
+      - .env
+    environment:
+      DB_HOST:     postgres
+      DB_PORT:     ${DB_PORT}
+      DB_NAME:     ${DB_NAME}
+      DB_USER:     ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DATA_DIR:    /app/data
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      transform:
+        condition: service_completed_successfully   # transform must finish first
 
-  # load:
-  #   build:
-  #     context: ./load
-  #     dockerfile: Dockerfile.load
-  #   env_file:
-  #     - .env
-  #   volumes:
-  #     - ./data:/app/data
-  #   depends_on:
-  #     - transform
+  # ===========================================================================
+  # STREAMLIT — dashboard, starts after load completes
+  # ===========================================================================
+  streamlit:
+    build:
+      context: ./streamlit
+      dockerfile: Dockerfile.streamlit
+    container_name: movies_streamlit
+    env_file:
+      - .env
+    environment:
+      DB_HOST:     postgres
+      DB_PORT:     ${DB_PORT}
+      DB_NAME:     ${DB_NAME}
+      DB_USER:     ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "8501:8501"
+    depends_on:
+      load:
+        condition: service_completed_successfully
+    restart: unless-stopped             # keep dashboard alive after load exits
 
-  # streamlit:
-  #   build:
-  #     context: ./streamlit
-  #     dockerfile: Dockerfile.streamlit
-  #   env_file:
-  #     - .env
-  #   ports:
-  #     - "8501:8501"
-  #   depends_on:
-  #     - load
+volumes:
+  postgres_data:                        # persists postgres data between runs
