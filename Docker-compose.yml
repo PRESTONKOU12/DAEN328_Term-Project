@@ -14,9 +14,9 @@ services:
       POSTGRES_USER:     ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "5432:5432"
+      - "5433:5432"       # host:5433 maps to container internal:5432
     volumes:
-      - postgres_data:/var/lib/postgresql/data   # named volume — survives restarts
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 10s
