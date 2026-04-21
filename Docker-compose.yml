@@ -1,0 +1,50 @@
+services:
+  extract:
+    build:
+      context: ./extract
+      dockerfile: Dockerfile.extract
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data        # writes merged_movies.csv into data/
+
+  transform:
+    build:
+      context: ./transform
+      dockerfile: Dockerfile.transform
+    env_file:
+      - .env
+    environment:
+      - DATA_DIR=/app/data      # must match the volume mount path below
+      - GEOCODER_AGENT=movies_in_the_park_transform
+      - GEOCODER_DELAY=1.0      # seconds between geocoder calls
+    volumes:
+      - ./data:/app/data        # reads merged_movies.csv, writes cleaned_merged_movies_final.csv
+    depends_on:
+      - extract                 # extract must finish before transform starts
+
+  # ---------------------------------------------------
+  # Placeholders — uncomment as you build each service
+  # ---------------------------------------------------
+
+  # load:
+  #   build:
+  #     context: ./load
+  #     dockerfile: Dockerfile.load
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ./data:/app/data
+  #   depends_on:
+  #     - transform
+
+  # streamlit:
+  #   build:
+  #     context: ./streamlit
+  #     dockerfile: Dockerfile.streamlit
+  #   env_file:
+  #     - .env
+  #   ports:
+  #     - "8501:8501"
+  #   depends_on:
+  #     - load

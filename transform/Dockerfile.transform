@@ -1,0 +1,35 @@
+# Use official Python slim image for smaller footprint
+FROM python:3.11-slim
+
+# Set working directory inside container
+WORKDIR /app
+
+# Prevents Python from writing .pyc files
+ENV PYTHONDONTWRITEBYTECODE=1
+# Prevents Python from buffering stdout/stderr (important for logging)
+ENV PYTHONUNBUFFERED=1
+
+# Set default data directory — overridable via docker-compose environment
+ENV DATA_DIR=/app/data
+
+# Install system dependencies
+# gcc + libpq-dev  → needed if psycopg2 is ever added to this stage
+# libgeos-dev      → geopy/shapely geometry support
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libpq-dev \
+    libgeos-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install Python dependencies first
+# (Docker layer caching: only reinstalls if requirements.txt changes)
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy transform script into the container
+COPY transform.py .
+
+# Run the transform script
+CMD ["python", "transform.py"]

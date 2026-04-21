@@ -33,14 +33,7 @@ CONNECTION_STRING = os.environ.get("CONNECTION_STRING")
 
 # API Endpoints (converted to SODA API format)
 # Format: https://data.cityofchicago.org/resource/{dataset_id}.json
-API_ENDPOINTS = {
-    2014: "https://data.cityofchicago.org/resource/cyqk-tzjs.json",
-    2015: "https://data.cityofchicago.org/resource/v2a6-nxhe.json",
-    2016: "https://data.cityofchicago.org/resource/6t9t-2gbi.json",
-    2017: "https://data.cityofchicago.org/resource/a7gu-2qz6.json",
-    2018: "https://data.cityofchicago.org/resource/e2v8-k3us.json",
-    2019: "https://data.cityofchicago.org/resource/7piw-z6r6.json",
-}
+API_ENDPOINTS = os.environ.get("API_ENPOINTS")
 
 # SODA API limit (default is 1000, set higher to get all records)
 API_LIMIT = 50000
