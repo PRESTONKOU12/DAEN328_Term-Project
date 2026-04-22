@@ -1,3 +1,9 @@
+# REMARK TO OTHER MEMBERS WHEN TESTING CODE (DELETE LATER):
+In etl/main.py at the bottom of the script on lines 88-89, in its current state there is a function call called run_load_postgres().  
+
+Should any of you want to test what data actually looks like (cleaned movie data & census data) there is instructions to change the function call to run_load_csv() where instead of posting to postgres it will output 2 csv files to the data directory as listed currently.  If you choose to do this <b>PLEASE CHANGE IT BACK BEFORE RECOMMITING TO THE REPO</b> so that when it comes time to perform our demo, our production line runs properly. 
+
+
 # Movies in the chicago parks 
 Authors:
 - Diya Dev
