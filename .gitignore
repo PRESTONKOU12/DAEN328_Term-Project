@@ -5,5 +5,3 @@ __pycache__/
 .idea/
 .DS_Store
 *.db
-merged_movies.csv
-cleaned_merged_movies.csv
