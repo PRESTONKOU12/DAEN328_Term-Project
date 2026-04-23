@@ -7,10 +7,20 @@ Authors:
 
 
 ## Overview:
-The goal of this project is to develop insights into different movie events within various parks in Chicago.  With the end goal to derive data-driven insights to answer the following questions: Grouping by zip-code, what genres are the most popular, Can we compare events hosted to income / zip-code, and many more questions.
+The goal of this project is to develop insights into different movie events within various parks in Chicago.  With the end goal to derive data-driven insights to answer the following questions: Grouping by zip-code, what genres are the most popular, Can we compare events hosted to income of the neighborhood, racial demographics, etc.
 
 The architecture of the pipeline follows a standard ETL (extract, transform, load) system.  Ingesting data from the chicago data portals' "Movies in the park: (year)" for years 2014 to 2019.  To develop a more nuanced analysis, we used multiple datasets across multiple years. 
 
+
+## Data sourcing
+The main api that we used in this project came from the Chicago open data portal.  These datasets contained information about the events that were hosted throughout the years. 
+
+To supliment our analysis 
+
+Chicago data portal: https://data.cityofchicago.org
+- Example link from 2014: https://data.cityofchicago.org/d/cyqk-tzjs
+
+Census data: (Andres please put census api link here)
 # Movies in the Park — Data Pipeline
 
 ## Architecture & Data Flow
@@ -217,9 +227,13 @@ The architecture of the pipeline follows a standard ETL (extract, transform, loa
 | `service_completed_successfully` | ETL must fully finish before streamlit starts |
 
 ## Quickstart
+1. Before running any commands, first ensure that you copy the .env example file (renaming to .env) and insert your postgres server password. 
 
+2. Once the .env file is configured it is safe to run 
 ```bash
 docker-compose up --build
 ```
+- <b>Remark:</b> This will perform a full ETL cycle which might take a little bit of time (around 3-5 minutes) to fully ingest, clean, and store.
 
-Open your browser at `http://localhost:8501`
+3. Once the ETL pipeline is complete and the logger declares nothing went wrong with the etl pipeline, the streamlit dashboard will start.
+- Open your browser at `http://localhost:8501` to view streamlit.
